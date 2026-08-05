@@ -5,7 +5,7 @@
  * Handles:
  * - SEP-1: Stellar.toml Discovery (fetching endpoints & available currencies like SRT)
  * - SEP-10: WebAuth authentication (fetching challenge XDR, signing with Freighter, obtaining JWT)
- * - SEP-24: Interactive deposit flow & status polling
+ * - SEP-24: Interactive deposit flow, interactive withdrawal flow & status polling
  */
 
 import { signTransaction } from './wallet';
@@ -204,8 +204,49 @@ export async function initiateInteractiveDeposit(transferServerEndpoint, jwtToke
 }
 
 /**
+ * Step 3b: SEP-24 Interactive Withdrawal Request
+ * Requests interactive withdrawal URL from anchor for asset (default: SRT).
+ *
+ * @param {string} transferServerEndpoint - Anchor TRANSFER_SERVER_SEP0024
+ * @param {string} jwtToken - Authenticated JWT Token from SEP-10
+ * @param {Object} options
+ * @param {string} [options.assetCode='SRT'] - Stellar asset code to withdraw
+ * @param {string} options.userPublicKey - Campaign creator's Stellar public key
+ * @returns {Promise<{ id: string, url: string, type: string }>} Interactive URL details
+ */
+export async function initiateInteractiveWithdrawal(transferServerEndpoint, jwtToken, { assetCode = 'SRT', userPublicKey }) {
+  const withdrawUrl = `${transferServerEndpoint}/transactions/withdraw/interactive`;
+
+  const payload = {
+    asset_code: assetCode,
+    account: userPublicKey,
+  };
+
+  const response = await fetch(withdrawUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${jwtToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`SEP-24 Interactive Withdrawal request failed (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  return {
+    id: data.id,
+    url: data.url,
+    type: data.type || 'interactive_customer_info_needed',
+  };
+}
+
+/**
  * Step 4: SEP-24 Transaction Status Poller
- * Queries anchor for the current state of a deposit transaction.
+ * Queries anchor for the current state of a deposit or withdrawal transaction.
  *
  * @param {string} transferServerEndpoint - Anchor TRANSFER_SERVER_SEP0024
  * @param {string} jwtToken - Authenticated JWT Token
