@@ -14,7 +14,7 @@ pub struct CampaignMetadata {
 }
 
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum DonationStatus {
     Pending = 1,
     Confirmed = 2,
