@@ -120,7 +120,7 @@ fn test_idempotency_prevents_double_crediting() {
 
 #[test]
 fn test_donate_with_path_payment_auto_converts() {
-    let (env, dm, token_addr, _) = setup_dm_only();
+    let (env, dm, _token_addr, _) = setup_dm_only();
     dm.register_campaign(&1u64);
 
     // Create source asset (Token A) and destination campaign asset (Token B)

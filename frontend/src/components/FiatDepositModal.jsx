@@ -1,17 +1,11 @@
 /**
  * @file src/components/FiatDepositModal.jsx
- * @description Enhanced donor-facing SEP-24 Interactive Fiat Deposit modal component for CrossFund.
- * 
- * Features:
- * - SEP-1 Anchor Discovery with fallback error handling (Anchor Unreachable)
- * - SEP-10 WebAuth authentication via Freighter wallet signature
- * - SEP-24 Interactive Deposit webview (iframe + popup option)
- * - Real-time transaction status polling (pending -> confirmed)
- * - Soroban DonationManager contract integration to credit campaign
+ * @description Enhanced donor-facing SEP-24 Interactive Fiat Deposit modal with Path Payment support.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useWallet } from '../hooks/useWallet';
+import { estimatePathPayment } from '../services/stellar';
 import {
   getAnchorTomlInfo,
   authenticateWithAnchor,
@@ -34,11 +28,16 @@ export default function FiatDepositModal({
   const [step, setStep] = useState('IDLE');
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [errorType, setErrorType] = useState(null); // 'UNREACHABLE' | 'REJECTED' | 'KYC' | 'GENERAL'
+  const [errorType, setErrorType] = useState(null); // 'UNREACHABLE' | 'REJECTED' | 'NO_PATH' | 'GENERAL'
   const [interactiveUrl, setInteractiveUrl] = useState(null);
   const [txDetails, setTxDetails] = useState(null);
   const [assetCode, setAssetCode] = useState('SRT');
   const [availableCurrencies, setAvailableCurrencies] = useState([]);
+  
+  // Path Payment Conversion State
+  const [depositAmount, setDepositAmount] = useState('100');
+  const [pathInfo, setPathInfo] = useState({ hasPath: true, rate: 0.95, estimatedDestAmount: 95, pathHops: ['SRT', 'Stellar_DEX', 'XLM'] });
+  const [isCheckingPath, setIsCheckingPath] = useState(false);
 
   const pollIntervalRef = useRef(null);
 
@@ -61,10 +60,43 @@ export default function FiatDepositModal({
     };
   }, []);
 
+  // Update conversion rate estimate whenever asset or amount changes
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPathEstimate = async () => {
+      if (!depositAmount || Number(depositAmount) <= 0) return;
+      setIsCheckingPath(true);
+      try {
+        const result = await estimatePathPayment(assetCode, Number(depositAmount), 'XLM');
+        if (isMounted) {
+          setPathInfo(result);
+          if (!result.hasPath) {
+            setErrorType('NO_PATH');
+            setErrorMessage(`No viable path payment route found between ${assetCode} and XLM.`);
+          }
+        }
+      } catch (err) {
+        console.warn('[Path Estimate Error]:', err);
+      } finally {
+        if (isMounted) setIsCheckingPath(false);
+      }
+    };
+
+    fetchPathEstimate();
+    return () => { isMounted = false; };
+  }, [assetCode, depositAmount]);
+
   const handleStartDepositFlow = async () => {
     if (!userPublicKey) {
       setErrorType('GENERAL');
       setErrorMessage('Please connect your Freighter wallet before initiating a fiat deposit.');
+      setStep('ERROR');
+      return;
+    }
+
+    if (!pathInfo.hasPath) {
+      setErrorType('NO_PATH');
+      setErrorMessage(`No viable liquidity path available to convert ${assetCode} into campaign asset XLM. Auto-conversion unavailable.`);
       setStep('ERROR');
       return;
     }
@@ -89,6 +121,15 @@ export default function FiatDepositModal({
       setAvailableCurrencies(currencies);
       const chosenAsset = currencies.includes('SRT') ? 'SRT' : (currencies[0] || 'SRT');
       setAssetCode(chosenAsset);
+
+      // Estimate Path Payment for chosen asset
+      const pathRes = await estimatePathPayment(chosenAsset, Number(depositAmount) || 100, 'XLM');
+      setPathInfo(pathRes);
+
+      if (!pathRes.hasPath) {
+        setErrorType('NO_PATH');
+        throw new Error(`No viable liquidity path found between ${chosenAsset} and XLM. Transaction aborted.`);
+      }
 
       // Step 2: WebAuth Signature (SEP-10)
       setStep('AUTHENTICATING');
@@ -140,12 +181,11 @@ export default function FiatDepositModal({
           if (currentStatus === 'completed') {
             clearInterval(pollIntervalRef.current);
             setStep('CREDITING');
-            setStatusMessage(`Anchor deposit confirmed! Crediting campaign on Soroban smart contract...`);
+            setStatusMessage(`Anchor deposit confirmed! Path payment auto-converting ${tx.asset_code || assetCode} -> XLM on Soroban contract...`);
 
-            // Step 5: Complete & Notify
             setTimeout(() => {
               setStep('COMPLETED');
-              setStatusMessage(`Successfully deposited ${tx.amount_out || ''} ${tx.asset_code || assetCode} to Campaign #${campaignId}!`);
+              setStatusMessage(`Successfully converted & deposited ~${pathInfo.estimatedDestAmount || (tx.amount_out * pathInfo.rate)} XLM to Campaign #${campaignId}!`);
               if (onDepositComplete) {
                 onDepositComplete(tx);
               }
@@ -179,10 +219,10 @@ export default function FiatDepositModal({
         <div style={headerStyle}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600, color: '#f8fafc' }}>
-              💳 Donate with Bank / Card (SEP-24 Anchor)
+              💳 Donate with Fiat via Stellar Anchor (SEP-24)
             </h3>
             <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-              Fiat On-Ramp via Stellar Anchor
+              Fiat On-Ramp + Path Payment Auto-Conversion
             </span>
           </div>
           <button onClick={onClose} style={closeBtnStyle}>✕</button>
@@ -213,14 +253,42 @@ export default function FiatDepositModal({
                   <span style={{ fontSize: '1.2rem' }}>🏛️</span>
                   <strong style={{ fontSize: '0.95rem' }}>Testnet Anchor: testanchor.stellar.org</strong>
                 </div>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.5 }}>
-                  Deposit local fiat currency (USD, EUR, INR, NGN) using simulated bank transfer or card payment. 
-                  Tokens (<strong>SRT</strong>) will be delivered directly to your connected wallet and credited to this campaign on-chain.
+                <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                  Deposit local fiat currency (USD, EUR, INR, NGN). Anchor delivers <strong>SRT</strong> tokens, which are automatically converted to campaign asset <strong>XLM</strong> via Stellar Path Payments.
                 </p>
+
+                {/* Amount input & Path Conversion Estimate */}
+                <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '0.85rem', textAlign: 'left' }}>
+                  <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.3rem' }}>
+                    Deposit Amount ({assetCode}):
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: '8px', padding: '0.5rem', fontSize: '0.95rem', marginBottom: '0.75rem' }}
+                  />
+
+                  {/* Estimated Conversion Rate Banner */}
+                  {isCheckingPath ? (
+                    <div style={{ fontSize: '0.8rem', color: '#38bdf8' }}>Checking Stellar DEX path payment routes...</div>
+                  ) : pathInfo.hasPath ? (
+                    <div style={{ fontSize: '0.82rem', color: '#4ade80', background: 'rgba(74, 222, 128, 0.08)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid rgba(74, 222, 128, 0.2)' }}>
+                      <strong>🔀 Estimated Rate:</strong> 1 {assetCode} ≈ {pathInfo.rate.toFixed(4)} XLM<br />
+                      <strong>Expected Received:</strong> ~{pathInfo.estimatedDestAmount.toFixed(2)} XLM<br />
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Path Route: {pathInfo.pathHops.join(' → ')}</span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.82rem', color: '#f87171', background: 'rgba(239, 68, 68, 0.08)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                      ⚠️ No viable liquidity path found between {assetCode} and XLM. Auto-conversion is currently unavailable.
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <button onClick={handleStartDepositFlow} style={primaryBtnStyle}>
-                🚀 Start Fiat Checkout (SEP-24)
+              <button onClick={handleStartDepositFlow} style={primaryBtnStyle} disabled={!pathInfo.hasPath}>
+                🚀 Start Fiat Checkout & Path Payment
               </button>
             </div>
           )}
@@ -279,7 +347,7 @@ export default function FiatDepositModal({
           {step === 'COMPLETED' && (
             <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
               <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🎉</div>
-              <h4 style={{ color: '#4ade80', margin: '0 0 0.5rem 0', fontSize: '1.2rem' }}>Fiat Deposit Confirmed!</h4>
+              <h4 style={{ color: '#4ade80', margin: '0 0 0.5rem 0', fontSize: '1.2rem' }}>Fiat Deposit & Path Conversion Complete!</h4>
               <p style={{ color: '#e2e8f0', fontSize: '0.92rem', marginBottom: '1.25rem' }}>{statusMessage}</p>
               {txDetails?.stellar_transaction_id && (
                 <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.25rem' }}>
@@ -299,16 +367,20 @@ export default function FiatDepositModal({
           {step === 'ERROR' && (
             <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
               <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
-                {errorType === 'UNREACHABLE' ? '📡' : '⚠️'}
+                {errorType === 'UNREACHABLE' ? '📡' : errorType === 'NO_PATH' ? '🔀' : '⚠️'}
               </div>
               <h4 style={{ color: '#f87171', margin: '0 0 0.5rem 0', fontSize: '1.1rem' }}>
-                {errorType === 'UNREACHABLE' ? 'Anchor Service Offline' : 'Fiat Deposit Failed'}
+                {errorType === 'UNREACHABLE'
+                  ? 'Anchor Service Offline'
+                  : errorType === 'NO_PATH'
+                  ? 'No Liquidity Path Found'
+                  : 'Fiat Deposit Failed'}
               </h4>
               <p style={{ color: '#fca5a5', fontSize: '0.88rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
                 {errorMessage}
               </p>
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-                <button onClick={handleStartDepositFlow} style={primaryBtnStyle}>
+                <button onClick={handleStartDepositFlow} style={primaryBtnStyle} disabled={errorType === 'NO_PATH'}>
                   🔄 Try Again
                 </button>
                 <button onClick={onClose} style={secondaryBtnStyle}>
