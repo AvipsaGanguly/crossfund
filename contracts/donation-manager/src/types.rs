@@ -60,4 +60,6 @@ pub enum Error {
     DepositAlreadyProcessed = 9,
     PendingDonationNotFound = 10,
     PendingDonationInvalidState = 11,
+    NoViablePath = 12,
+    SlippageExceeded = 13,
 }

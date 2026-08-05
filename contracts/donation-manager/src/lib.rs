@@ -245,6 +245,86 @@ impl DonationManager {
             .unwrap_or(0i128)
     }
 
+    /// Path Payment Donation: Converts send_token to target campaign asset with conversion rate & minimum destination amount check.
+    pub fn donate_with_path_payment(
+        env: Env,
+        donor: Address,
+        campaign_id: u64,
+        send_token: Address,
+        send_amount: i128,
+        dest_token: Address,
+        min_dest_amount: i128,
+        conversion_rate_num: i128,
+        conversion_rate_den: i128,
+    ) -> Result<(), Error> {
+        donor.require_auth();
+
+        if send_amount <= 0 || min_dest_amount <= 0 || conversion_rate_den <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        let mut raised: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::CampaignFunds(campaign_id))
+            .ok_or(Error::CampaignNotRegistered)?;
+
+        let cm: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::CampaignManager)
+            .ok_or(Error::SetupIncomplete)?;
+
+        if let Ok(Ok(campaign)) = env.try_invoke_contract::<CampaignMetadata, soroban_sdk::Error>(
+            &cm,
+            &Symbol::new(&env, "get_campaign"),
+            soroban_sdk::vec![&env, campaign_id.into_val(&env)],
+        ) {
+            if !campaign.active {
+                return Err(Error::CampaignInactive);
+            }
+            let current_time = env.ledger().timestamp();
+            if current_time >= campaign.deadline {
+                return Err(Error::DeadlinePassed);
+            }
+        }
+
+        // Calculate converted destination asset amount
+        let dest_amount = send_amount
+            .checked_mul(conversion_rate_num)
+            .ok_or(Error::InvalidAmount)?
+            / conversion_rate_den;
+
+        if dest_amount < min_dest_amount {
+            return Err(Error::SlippageExceeded);
+        }
+
+        // Transfer send_token from donor to contract
+        let send_client = token::Client::new(&env, &send_token);
+        send_client.transfer(&donor, &env.current_contract_address(), &send_amount);
+
+        // Credit converted dest_amount to campaign raised funds
+        raised += dest_amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::CampaignFunds(campaign_id), &raised);
+
+        // Record per-asset funds for target dest_token
+        let mut asset_raised: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::CampaignAssetFunds(campaign_id, dest_token.clone()))
+            .unwrap_or(0i128);
+        asset_raised += dest_amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::CampaignAssetFunds(campaign_id, dest_token), &asset_raised);
+
+        events::donation_received(&env, campaign_id, donor, dest_amount);
+
+        Ok(())
+    }
+
     pub fn withdraw(env: Env, campaign_id: u64) -> Result<(), Error> {
         let cm: Address = env
             .storage()
