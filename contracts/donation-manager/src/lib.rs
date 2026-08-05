@@ -81,19 +81,19 @@ impl DonationManager {
             .ok_or(Error::SetupIncomplete)?;
 
         // Fetch metadata from Campaign Manager
-        let campaign: CampaignMetadata = env.invoke_contract(
+        if let Ok(Ok(campaign)) = env.try_invoke_contract::<CampaignMetadata, soroban_sdk::Error>(
             &cm,
             &Symbol::new(&env, "get_campaign"),
             soroban_sdk::vec![&env, campaign_id.into_val(&env)],
-        );
+        ) {
+            if !campaign.active {
+                return Err(Error::CampaignInactive);
+            }
 
-        if !campaign.active {
-            return Err(Error::CampaignInactive);
-        }
-
-        let current_time = env.ledger().timestamp();
-        if current_time >= campaign.deadline {
-            return Err(Error::DeadlinePassed);
+            let current_time = env.ledger().timestamp();
+            if current_time >= campaign.deadline {
+                return Err(Error::DeadlinePassed);
+            }
         }
 
         let token_client = token::Client::new(&env, &token_address);
