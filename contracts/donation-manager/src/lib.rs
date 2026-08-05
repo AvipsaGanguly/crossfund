@@ -3,7 +3,7 @@ use soroban_sdk::{contract, contractimpl, token, Address, Env, IntoVal, Symbol};
 
 mod events;
 mod types;
-use types::{CampaignMetadata, DataKey, Error};
+use types::{CampaignMetadata, DataKey, DonationStatus, Error, PendingDonation};
 
 #[contract]
 pub struct DonationManager;
@@ -27,11 +27,6 @@ impl DonationManager {
             .get(&DataKey::CampaignManager)
             .ok_or(Error::SetupIncomplete)?;
 
-        // Ensure the transaction was authorized by the campaign manager.
-        // The CampaignManager must call env.authorize_as_current_contract()
-        // before invoking this function, otherwise Error(Auth, InvalidAction)
-        // is thrown by the Soroban host because require_auth() is in a
-        // sub-invocation, not the root invocation.
         cm.require_auth();
 
         // Initialize funds to 0
@@ -49,7 +44,24 @@ impl DonationManager {
             .unwrap_or(0i128)
     }
 
+    /// Standard donation using contract default token (backward compatible)
     pub fn donate(env: Env, donor: Address, campaign_id: u64, amount: i128) -> Result<(), Error> {
+        let token_address: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::TokenAddress)
+            .ok_or(Error::SetupIncomplete)?;
+        Self::donate_with_asset(env, donor, campaign_id, token_address, amount)
+    }
+
+    /// Multi-Asset Donation: Supports donating any SAC token asset (e.g. USDC, SRT)
+    pub fn donate_with_asset(
+        env: Env,
+        donor: Address,
+        campaign_id: u64,
+        token_address: Address,
+        amount: i128,
+    ) -> Result<(), Error> {
         donor.require_auth();
 
         if amount <= 0 {
@@ -84,11 +96,6 @@ impl DonationManager {
             return Err(Error::DeadlinePassed);
         }
 
-        let token_address: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::TokenAddress)
-            .unwrap();
         let token_client = token::Client::new(&env, &token_address);
         token_client.transfer(&donor, &env.current_contract_address(), &amount);
 
@@ -97,9 +104,145 @@ impl DonationManager {
             .persistent()
             .set(&DataKey::CampaignFunds(campaign_id), &raised);
 
+        // Track per-asset funds
+        let mut asset_raised: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::CampaignAssetFunds(campaign_id, token_address.clone()))
+            .unwrap_or(0i128);
+        asset_raised += amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::CampaignAssetFunds(campaign_id, token_address), &asset_raised);
+
         events::donation_received(&env, campaign_id, donor, amount);
 
         Ok(())
+    }
+
+    /// Record a pending anchor deposit for asynchronous settlement
+    pub fn record_pending_donation(
+        env: Env,
+        donor: Address,
+        campaign_id: u64,
+        deposit_id: soroban_sdk::String,
+        amount: i128,
+        token_address: Address,
+    ) -> Result<(), Error> {
+        donor.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        // Idempotency check: Reject if deposit_id already processed or pending
+        if env.storage().persistent().has(&DataKey::ProcessedDeposit(deposit_id.clone()))
+            || env.storage().persistent().has(&DataKey::PendingDonation(deposit_id.clone()))
+        {
+            return Err(Error::DepositAlreadyProcessed);
+        }
+
+        let pending = PendingDonation {
+            deposit_id: deposit_id.clone(),
+            campaign_id,
+            donor: donor.clone(),
+            token_address,
+            amount,
+            status: DonationStatus::Pending,
+            timestamp: env.ledger().timestamp(),
+        };
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingDonation(deposit_id), &pending);
+
+        let mut pending_funds: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::CampaignPendingFunds(campaign_id))
+            .unwrap_or(0i128);
+        pending_funds += amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::CampaignPendingFunds(campaign_id), &pending_funds);
+
+        events::pending_recorded(&env, campaign_id, donor, amount);
+        Ok(())
+    }
+
+    /// Confirm a pending anchor deposit upon on-chain settlement with Idempotency Protection
+    pub fn confirm_pending_donation(env: Env, deposit_id: soroban_sdk::String) -> Result<(), Error> {
+        if env.storage().persistent().has(&DataKey::ProcessedDeposit(deposit_id.clone())) {
+            return Err(Error::DepositAlreadyProcessed);
+        }
+
+        let mut pending: PendingDonation = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingDonation(deposit_id.clone()))
+            .ok_or(Error::PendingDonationNotFound)?;
+
+        if pending.status != DonationStatus::Pending {
+            return Err(Error::PendingDonationInvalidState);
+        }
+
+        // Execute asset transfer from donor/anchor to contract
+        let token_client = token::Client::new(&env, &pending.token_address);
+        token_client.transfer(&pending.donor, &env.current_contract_address(), &pending.amount);
+
+        // Mark as confirmed and processed (idempotency key)
+        pending.status = DonationStatus::Confirmed;
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingDonation(deposit_id.clone()), &pending);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ProcessedDeposit(deposit_id), &true);
+
+        // Move amount from pending to confirmed raised funds
+        let mut pending_funds: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::CampaignPendingFunds(pending.campaign_id))
+            .unwrap_or(0i128);
+        pending_funds = pending_funds.saturating_sub(pending.amount);
+        env.storage()
+            .persistent()
+            .set(&DataKey::CampaignPendingFunds(pending.campaign_id), &pending_funds);
+
+        let mut raised: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::CampaignFunds(pending.campaign_id))
+            .unwrap_or(0i128);
+        raised += pending.amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::CampaignFunds(pending.campaign_id), &raised);
+
+        events::pending_confirmed(&env, pending.campaign_id, pending.donor, pending.amount);
+        Ok(())
+    }
+
+    pub fn get_pending_donation(env: Env, deposit_id: soroban_sdk::String) -> Result<PendingDonation, Error> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::PendingDonation(deposit_id))
+            .ok_or(Error::PendingDonationNotFound)
+    }
+
+    pub fn get_pending_funds(env: Env, campaign_id: u64) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::CampaignPendingFunds(campaign_id))
+            .unwrap_or(0i128)
+    }
+
+    pub fn get_campaign_asset_funds(env: Env, campaign_id: u64, token_address: Address) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::CampaignAssetFunds(campaign_id, token_address))
+            .unwrap_or(0i128)
     }
 
     pub fn withdraw(env: Env, campaign_id: u64) -> Result<(), Error> {

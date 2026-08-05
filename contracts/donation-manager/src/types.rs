@@ -14,11 +14,35 @@ pub struct CampaignMetadata {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DonationStatus {
+    Pending = 1,
+    Confirmed = 2,
+    Cancelled = 3,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PendingDonation {
+    pub deposit_id: String,
+    pub campaign_id: u64,
+    pub donor: Address,
+    pub token_address: Address,
+    pub amount: i128,
+    pub status: DonationStatus,
+    pub timestamp: u64,
+}
+
+#[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
     CampaignFunds(u64), // Tracks raised amount
+    CampaignAssetFunds(u64, Address), // Tracks raised amount per asset token
     CampaignManager,
     TokenAddress,
+    PendingDonation(String), // Tracks pending donation by deposit_id
+    ProcessedDeposit(String), // Idempotency check for processed deposit_ids
+    CampaignPendingFunds(u64), // Tracks pending funds for a campaign
 }
 
 #[contracterror]
@@ -33,4 +57,7 @@ pub enum Error {
     CampaignInactive = 6,
     InvalidAmount = 7,
     SetupIncomplete = 8,
+    DepositAlreadyProcessed = 9,
+    PendingDonationNotFound = 10,
+    PendingDonationInvalidState = 11,
 }

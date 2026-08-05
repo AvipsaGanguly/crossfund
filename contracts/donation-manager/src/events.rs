@@ -9,3 +9,13 @@ pub fn funds_withdrawn(env: &Env, campaign_id: u64, owner: Address, amount: i128
     let topics = (symbol_short!("withdraw"), campaign_id, owner);
     env.events().publish(topics, amount);
 }
+
+pub fn pending_recorded(env: &Env, campaign_id: u64, donor: Address, amount: i128) {
+    let topics = (symbol_short!("pend_rec"), campaign_id, donor);
+    env.events().publish(topics, amount);
+}
+
+pub fn pending_confirmed(env: &Env, campaign_id: u64, donor: Address, amount: i128) {
+    let topics = (symbol_short!("pend_cnf"), campaign_id, donor);
+    env.events().publish(topics, amount);
+}
