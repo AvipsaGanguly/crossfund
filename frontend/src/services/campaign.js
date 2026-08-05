@@ -34,6 +34,29 @@ export const buildDonateTx = async (address, campaignId, amount) => {
   });
 };
 
+export const buildDonateWithAssetTx = async (address, campaignId, tokenAddress, amount) => {
+  return buildTransaction(address, (builder) => {
+    builder.addOperation(
+      dmContract.call("donate_with_asset",
+        nativeToScVal(address, { type: 'address' }),
+        nativeToScVal(campaignId, { type: 'u64' }),
+        nativeToScVal(tokenAddress, { type: 'address' }),
+        nativeToScVal(amount, { type: 'i128' })
+      )
+    );
+  });
+};
+
+export const buildConfirmPendingDonationTx = async (address, depositId) => {
+  return buildTransaction(address, (builder) => {
+    builder.addOperation(
+      dmContract.call("confirm_pending_donation",
+        nativeToScVal(depositId, { type: 'string' })
+      )
+    );
+  });
+};
+
 export const buildWithdrawTx = async (address, campaignId) => {
   return buildTransaction(address, (builder) => {
     builder.addOperation(

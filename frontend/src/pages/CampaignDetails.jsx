@@ -105,9 +105,12 @@ const CampaignDetails = () => {
       <FiatDepositModal
         isOpen={showFiatModal}
         onClose={() => setShowFiatModal(false)}
+        campaignId={id}
         campaignTitle={title}
-        onDepositComplete={(tx) => {
+        onDepositComplete={async (tx) => {
           console.log('[Fiat Deposit Complete]:', tx);
+          const updated = await getCampaign(id);
+          if (updated) setCampaign(updated);
         }}
       />
 
@@ -182,7 +185,7 @@ const CampaignDetails = () => {
           </div>
         )}
 
-        <h3 style={{ marginBottom: '1rem' }}>Support this Campaign</h3>
+        <h3 style={{ marginBottom: '1.25rem' }}>Choose Donation Method</h3>
 
         {/* Failure Graceful Error Banner */}
         {donationError && (
@@ -222,25 +225,44 @@ const CampaignDetails = () => {
         )}
 
         {isConnected ? (
-          <div>
-            <form onSubmit={handleDonate} style={{ display: 'flex', gap: '1rem', maxWidth: '500px', marginBottom: '1.25rem' }}>
-              <input
-                type="number"
-                min="1"
-                step="any"
-                placeholder="Amount in XLM"
-                required
-                value={donationAmount}
-                className="input-field"
-                style={{ flex: 1 }}
-                onChange={(e) => setDonationAmount(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary" disabled={isDonating}>
-                {isDonating ? 'Donating...' : 'Donate XLM'}
-              </button>
-            </form>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+            {/* Option 1: Direct XLM Crypto Donation */}
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>⚡</span>
+                <strong style={{ fontSize: '0.98rem' }}>Option A: Direct XLM Wallet Donation</strong>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                Donate native XLM directly from your connected Freighter wallet via Soroban.
+              </p>
+              <form onSubmit={handleDonate} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <input
+                  type="number"
+                  min="1"
+                  step="any"
+                  placeholder="Amount in XLM"
+                  required
+                  value={donationAmount}
+                  className="input-field"
+                  onChange={(e) => setDonationAmount(e.target.value)}
+                />
+                <button type="submit" className="btn btn-primary" disabled={isDonating}>
+                  {isDonating ? 'Processing XLM Donation...' : 'Donate XLM Now'}
+                </button>
+              </form>
+            </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+            {/* Option 2: Fiat Bank / Card On-Ramp via SEP-24 Anchor */}
+            <div style={{ background: 'rgba(56, 189, 248, 0.04)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '14px', padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <span style={{ fontSize: '1.2rem' }}>💳</span>
+                  <strong style={{ fontSize: '0.98rem', color: '#f8fafc' }}>Option B: Bank / Card Fiat Deposit (SEP-24)</strong>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+                  No crypto required beforehand. Convert local fiat (USD/EUR/INR/NGN) via accredited Stellar Anchor (<code>testanchor.stellar.org</code>).
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowFiatModal(true)}
@@ -253,17 +275,12 @@ const CampaignDetails = () => {
                   fontSize: '0.95rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
                   boxShadow: '0 4px 14px rgba(14, 165, 233, 0.3)',
+                  marginTop: '0.5rem',
                 }}
               >
-                <span>💳</span> Donate with Fiat (SEP-24 Anchor)
+                💳 Start Bank/Card Fiat Checkout
               </button>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Bank transfer & card on-ramp via <code>testanchor.stellar.org</code>
-              </span>
             </div>
           </div>
         ) : (

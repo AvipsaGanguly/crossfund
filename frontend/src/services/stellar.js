@@ -16,6 +16,8 @@ import {
 import {
   buildCreateCampaignTx,
   buildDonateTx,
+  buildDonateWithAssetTx,
+  buildConfirmPendingDonationTx,
   buildWithdrawTx,
   fetchCampaign as fetchCampaignMetadata,
   fetchAllCampaigns as fetchAllCampaignsData,
@@ -248,6 +250,48 @@ export async function donate(campaignId, amount) {
     amountXLM: parsedAmount / 10000000,
     donorAddress: activeWallet?.address || 'N/A',
   };
+}
+
+/**
+ * Donates custom asset tokens to an active crowdfunding campaign.
+ */
+export async function donateWithAsset(campaignId, tokenAddress, amount) {
+  const parsedId = Number(campaignId);
+  const parsedAmount = Number(amount);
+
+  if (isNaN(parsedId) || parsedId <= 0) {
+    throw new Error('Invalid campaign ID specified for donation.');
+  }
+
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    throw new Error('Invalid donation amount: Amount must be greater than zero.');
+  }
+
+  const activeWallet = getActiveWallet();
+
+  const txResult = await sendSorobanTransaction((sourceAddress) =>
+    buildDonateWithAssetTx(sourceAddress, parsedId, tokenAddress, parsedAmount)
+  );
+
+  return {
+    ...txResult,
+    campaignId: parsedId,
+    amountStroops: parsedAmount,
+    donorAddress: activeWallet?.address || 'N/A',
+  };
+}
+
+/**
+ * Confirms a pending anchor deposit on the DonationManager contract.
+ */
+export async function confirmPendingDonation(depositId) {
+  if (!depositId) {
+    throw new Error('Invalid deposit ID specified for confirmation.');
+  }
+
+  return sendSorobanTransaction((sourceAddress) =>
+    buildConfirmPendingDonationTx(sourceAddress, depositId)
+  );
 }
 
 /**
