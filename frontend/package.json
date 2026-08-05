@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run --dir src"
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^2.5.0",
