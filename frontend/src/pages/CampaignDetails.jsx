@@ -6,6 +6,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import ProgressBar from '../components/ProgressBar';
 import { LoadingSkeleton } from '../components/LoadingSpinner';
 import DonationSuccessModal from '../components/DonationSuccessModal';
+import FiatDepositModal from '../components/FiatDepositModal';
 
 const CampaignDetails = () => {
   const { id } = useParams();
@@ -17,6 +18,7 @@ const CampaignDetails = () => {
   const [donationAmount, setDonationAmount] = useState('');
   const [latestDonation, setLatestDonation] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showFiatModal, setShowFiatModal] = useState(false);
   const [donationError, setDonationError] = useState(null);
 
   useEffect(() => {
@@ -98,6 +100,16 @@ const CampaignDetails = () => {
           onClose={() => setShowSuccessModal(false)}
         />
       )}
+
+      {/* SEP-24 Fiat Deposit Modal */}
+      <FiatDepositModal
+        isOpen={showFiatModal}
+        onClose={() => setShowFiatModal(false)}
+        campaignTitle={title}
+        onDepositComplete={(tx) => {
+          console.log('[Fiat Deposit Complete]:', tx);
+        }}
+      />
 
       <Link to="/" style={{ color: 'var(--accent-cyan)', textDecoration: 'none', marginBottom: '1rem', display: 'inline-block' }}>
         &larr; Back to Campaigns
@@ -210,22 +222,50 @@ const CampaignDetails = () => {
         )}
 
         {isConnected ? (
-          <form onSubmit={handleDonate} style={{ display: 'flex', gap: '1rem', maxWidth: '500px' }}>
-            <input
-              type="number"
-              min="1"
-              step="any"
-              placeholder="Amount in XLM"
-              required
-              value={donationAmount}
-              className="input-field"
-              style={{ flex: 1 }}
-              onChange={(e) => setDonationAmount(e.target.value)}
-            />
-            <button type="submit" className="btn btn-primary" disabled={isDonating}>
-              {isDonating ? 'Donating...' : 'Donate Now'}
-            </button>
-          </form>
+          <div>
+            <form onSubmit={handleDonate} style={{ display: 'flex', gap: '1rem', maxWidth: '500px', marginBottom: '1.25rem' }}>
+              <input
+                type="number"
+                min="1"
+                step="any"
+                placeholder="Amount in XLM"
+                required
+                value={donationAmount}
+                className="input-field"
+                style={{ flex: 1 }}
+                onChange={(e) => setDonationAmount(e.target.value)}
+              />
+              <button type="submit" className="btn btn-primary" disabled={isDonating}>
+                {isDonating ? 'Donating...' : 'Donate XLM'}
+              </button>
+            </form>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowFiatModal(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #0ea5e9 0%, #a855f7 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '0.75rem 1.25rem',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 14px rgba(14, 165, 233, 0.3)',
+                }}
+              >
+                <span>💳</span> Donate with Fiat (SEP-24 Anchor)
+              </button>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Bank transfer & card on-ramp via <code>testanchor.stellar.org</code>
+              </span>
+            </div>
+          </div>
         ) : (
           <div>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Please connect your Stellar wallet to contribute.</p>
