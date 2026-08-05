@@ -1,0 +1,29 @@
+:root {
+  /* Colors */
+  --bg-deep: #020617;
+  --bg-dark: #0f172a;
+  --bg-card: rgba(30, 41, 59, 0.4);
+  
+  --accent-cyan: #06b6d4;
+  --accent-cyan-glow: rgba(6, 182, 212, 0.5);
+  --accent-purple: #8b5cf6;
+  --accent-purple-glow: rgba(139, 92, 246, 0.5);
+  
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-hover: rgba(255, 255, 255, 0.2);
+
+  /* Geometry & Effects */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+  
+  --blur-md: 12px;
+  --blur-lg: 24px;
+
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.3s ease;
+}

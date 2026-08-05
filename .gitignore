@@ -1,0 +1,19 @@
+# Node / Frontend dependencies & build artifacts
+node_modules/
+dist/
+.env
+.env.local
+*.log
+npm-debug.log*
+
+# Rust / Soroban build artifacts
+target/
+**/target/
+**/target-check/
+*.wasm
+
+# IDE & System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

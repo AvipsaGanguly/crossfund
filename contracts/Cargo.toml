@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "campaign-manager",
+    "donation-manager"
+]
+resolver = "2"
