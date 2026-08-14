@@ -242,6 +242,30 @@ export async function initiateInteractiveDeposit(transferServerEndpoint, jwtToke
 }
 
 /**
+ * Helper: Opens SEP-24 interactive checkout in a centered popup window for user completion.
+ *
+ * @param {string} url - Anchor interactive checkout URL
+ * @param {string} [title='Stellar Anchor Interactive Checkout'] - Window title
+ * @returns {Window | null} Window reference
+ */
+export function openInteractiveWindow(url, title = 'Stellar Anchor Interactive Checkout') {
+  if (typeof window !== 'undefined' && window.open) {
+    const width = 600;
+    const height = 750;
+    const left = (window.screen.width - width) / 2;
+    const top = (window.screen.height - height) / 2;
+    const popupWindow = window.open(
+      url,
+      title,
+      `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`
+    );
+    if (popupWindow) popupWindow.focus();
+    return popupWindow;
+  }
+  return null;
+}
+
+/**
  * Step 3b: SEP-24 Interactive Withdrawal Request
  * Requests interactive withdrawal URL from anchor for asset (default: SRT).
  *

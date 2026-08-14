@@ -11,6 +11,7 @@ import {
   initiateInteractiveDeposit,
   initiateInteractiveWithdrawal,
   getDepositTransactionStatus,
+  openInteractiveWindow,
 } from '../services/anchorService';
 
 // Mock wallet module
@@ -193,6 +194,20 @@ issuer = "GCDNJBDQUBWCDFRB2OPFDYDLY2CYCD2RP34WECWTESPB2CYD2RP34WEC"
       expect(tx.id).toBe('dep_12345');
       expect(tx.status).toBe('completed');
       expect(tx.stellar_transaction_id).toBe('tx_hash_9999');
+    });
+
+    it('opens interactive window popup using window.open', () => {
+      const mockFocus = vi.fn();
+      const openSpy = vi.spyOn(window, 'open').mockReturnValue({ focus: mockFocus });
+
+      const win = openInteractiveWindow('https://testanchor.stellar.org/sep24/interactive/deposit?id=123');
+      expect(openSpy).toHaveBeenCalledWith(
+        'https://testanchor.stellar.org/sep24/interactive/deposit?id=123',
+        'Stellar Anchor Interactive Checkout',
+        expect.stringContaining('width=600')
+      );
+      expect(mockFocus).toHaveBeenCalled();
+      openSpy.mockRestore();
     });
   });
 });
