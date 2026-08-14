@@ -119,4 +119,18 @@ describe('FiatDepositModal Component', () => {
       expect(screen.getByText(/Anchor Service Offline/i)).toBeInTheDocument();
     });
   });
+
+  it('handles KYC rejection status cleanly', async () => {
+    const { submitCustomerKyc } = await import('../services/anchorService');
+    submitCustomerKyc.mockRejectedValueOnce(new Error('KYC verification was rejected by anchor server.'));
+
+    render(<FiatDepositModal {...defaultProps} />);
+
+    const startBtn = screen.getByText(/Start Fiat Checkout & Path Payment/i);
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Fiat Deposit Failed/i)).toBeInTheDocument();
+    });
+  });
 });

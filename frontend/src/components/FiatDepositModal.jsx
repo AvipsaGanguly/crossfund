@@ -176,7 +176,10 @@ export default function FiatDepositModal({
         }
       } catch (kycErr) {
         console.warn('[SEP-12 KYC Warning]:', kycErr.message);
-        // Continue to interactive deposit if anchor accepts inline interactive KYC
+        if (kycErr.message.toLowerCase().includes('reject')) {
+          setErrorType('REJECTED');
+          throw kycErr;
+        }
       }
 
       // Step 3: Initiate Interactive Deposit (SEP-24)
@@ -204,7 +207,20 @@ export default function FiatDepositModal({
   const startStatusPolling = (transferServer, jwtToken, transactionId) => {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
 
+    let pollAttempts = 0;
+    const maxPollAttempts = 30; // 30 attempts * 4s = 120 seconds timeout limit
+
     pollIntervalRef.current = setInterval(async () => {
+      pollAttempts += 1;
+
+      if (pollAttempts > maxPollAttempts) {
+        clearInterval(pollIntervalRef.current);
+        setErrorType('TIMEOUT');
+        setErrorMessage('Deposit transaction status polling timed out after 2 minutes. Please check your transaction history.');
+        setStep('ERROR');
+        return;
+      }
+
       try {
         const tx = await getDepositTransactionStatus(transferServer, jwtToken, transactionId);
         if (tx) {
@@ -238,7 +254,7 @@ export default function FiatDepositModal({
               }
             }, 1200);
 
-          } else if (currentStatus === 'error' || currentStatus === 'no_market') {
+          } else if (currentStatus === 'error' || currentStatus === 'no_market' || currentStatus === 'user_action_required') {
             clearInterval(pollIntervalRef.current);
             setErrorType('REJECTED');
             setErrorMessage(`Deposit was rejected or failed with anchor status: ${currentStatus}`);
