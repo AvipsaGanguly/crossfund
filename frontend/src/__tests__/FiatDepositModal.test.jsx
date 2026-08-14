@@ -15,6 +15,22 @@ vi.mock('../hooks/useWallet', () => ({
   }),
 }));
 
+// Mock Wallet Services
+vi.mock('../services/wallet', () => ({
+  signTransaction: vi.fn().mockResolvedValue('AAAA_SIGNED_XDR_MOCK'),
+}));
+
+// Mock Campaign Services
+vi.mock('../services/campaign', () => ({
+  buildDonateTx: vi.fn().mockResolvedValue({ xdr: 'BUILD_DONATE_TX_MOCK' }),
+}));
+
+// Mock Contract Services
+vi.mock('../services/contract', () => ({
+  submitTransaction: vi.fn().mockResolvedValue('tx_hash_donation_bridge_12345'),
+  pollTransactionStatus: vi.fn().mockResolvedValue({ status: 'SUCCESS' }),
+}));
+
 // Mock Stellar Services
 vi.mock('../services/stellar', () => ({
   estimatePathPayment: vi.fn().mockResolvedValue({
