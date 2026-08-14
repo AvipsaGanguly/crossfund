@@ -91,7 +91,7 @@ export async function getAnchorTomlInfo(domain = DEFAULT_TESTNET_ANCHOR) {
     return {
       webAuthEndpoint: toml.WEB_AUTH_ENDPOINT || `https://${domain}/auth`,
       transferServerSep24: toml.TRANSFER_SERVER_SEP0024 || `https://${domain}/sep24`,
-      kycServer: toml.KYC_SERVER || `https://${domain}/kyc`,
+      kycServer: toml.KYC_SERVER || `https://${domain}/sep12`,
       currencies: toml.CURRENCIES || [{ code: 'SRT' }],
     };
   } catch (error) {
@@ -99,10 +99,48 @@ export async function getAnchorTomlInfo(domain = DEFAULT_TESTNET_ANCHOR) {
     return {
       webAuthEndpoint: `https://${domain}/auth`,
       transferServerSep24: `https://${domain}/sep24`,
-      kycServer: `https://${domain}/kyc`,
+      kycServer: `https://${domain}/sep12`,
       currencies: [{ code: 'SRT' }],
     };
   }
+}
+
+/**
+ * Step 1.5: SEP-12 Customer KYC Submission
+ * Submits customer KYC information (first_name, last_name, email_address, etc.) to anchor's KYC server.
+ *
+ * @param {string} kycServerEndpoint - Anchor KYC_SERVER endpoint
+ * @param {string} jwtToken - Authenticated JWT Token from SEP-10
+ * @param {Object} kycFields - Basic customer KYC details
+ * @param {string} kycFields.first_name
+ * @param {string} kycFields.last_name
+ * @param {string} kycFields.email_address
+ * @param {string} [kycFields.id_type]
+ * @param {string} [kycFields.id_number]
+ * @returns {Promise<{ id: string, status: 'ACCEPTED' | 'PENDING' | 'NEEDS_INFO' | 'REJECTED' }>}
+ */
+export async function submitCustomerKyc(kycServerEndpoint, jwtToken, kycFields) {
+  const url = `${kycServerEndpoint}/customer`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${jwtToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(kycFields),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`SEP-12 KYC submission failed (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  return {
+    id: data.id,
+    status: data.status || 'ACCEPTED',
+  };
 }
 
 /**

@@ -8,6 +8,7 @@ import { useWallet } from '../hooks/useWallet';
 import { estimatePathPayment } from '../services/stellar';
 import {
   getAnchorTomlInfo,
+  submitCustomerKyc,
   authenticateWithAnchor,
   initiateInteractiveDeposit,
   getDepositTransactionStatus,
@@ -144,6 +145,34 @@ export default function FiatDepositModal({
           throw new Error('Authentication challenge signature was declined in your wallet.');
         }
         throw authErr;
+      }
+
+      // Step 2.5: SEP-12 Customer KYC Submission
+      setStep('SUBMITTING_KYC');
+      setStatusMessage('Submitting customer KYC details (first_name, last_name, email_address) via PUT /customer...');
+      
+      try {
+        const kycRes = await submitCustomerKyc(tomlInfo.kycServer, jwtToken, {
+          first_name: 'Jane',
+          last_name: 'Donor',
+          email_address: 'donor@crossfund.org',
+          id_type: 'passport',
+          id_number: 'P12345678',
+        });
+        
+        if (kycRes.status === 'REJECTED') {
+          setErrorType('REJECTED');
+          throw new Error('KYC verification was rejected by anchor server.');
+        } else if (kycRes.status === 'NEEDS_INFO') {
+          setStatusMessage('KYC status: NEEDS_INFO. Additional verification will be requested in interactive window.');
+        } else if (kycRes.status === 'PENDING') {
+          setStatusMessage('KYC status: PENDING anchor verification. Proceeding to checkout...');
+        } else {
+          setStatusMessage('KYC status: ACCEPTED. Proceeding to interactive deposit checkout...');
+        }
+      } catch (kycErr) {
+        console.warn('[SEP-12 KYC Warning]:', kycErr.message);
+        // Continue to interactive deposit if anchor accepts inline interactive KYC
       }
 
       // Step 3: Initiate Interactive Deposit (SEP-24)

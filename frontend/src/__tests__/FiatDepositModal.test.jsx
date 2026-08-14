@@ -31,8 +31,10 @@ vi.mock('../services/anchorService', () => ({
   getAnchorTomlInfo: vi.fn().mockResolvedValue({
     webAuthEndpoint: 'https://testanchor.stellar.org/auth',
     transferServerSep24: 'https://testanchor.stellar.org/sep24',
+    kycServer: 'https://testanchor.stellar.org/sep12',
     currencies: [{ code: 'SRT' }],
   }),
+  submitCustomerKyc: vi.fn().mockResolvedValue({ id: 'kyc_123', status: 'ACCEPTED' }),
   authenticateWithAnchor: vi.fn().mockResolvedValue('MOCK_JWT_BEARER_TOKEN'),
   initiateInteractiveDeposit: vi.fn().mockResolvedValue({
     id: 'dep_test_123',

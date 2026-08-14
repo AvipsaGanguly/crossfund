@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getAnchorTomlInfo,
+  submitCustomerKyc,
   authenticateWithAnchor,
   initiateInteractiveDeposit,
   initiateInteractiveWithdrawal,
@@ -57,6 +58,39 @@ issuer = "GCDNJBDQUBWCDFRB2OPFDYDLY2CYCD2RP34WECWTESPB2CYD2RP34WEC"
       expect(info.webAuthEndpoint).toBe('https://offline-anchor.org/auth');
       expect(info.transferServerSep24).toBe('https://offline-anchor.org/sep24');
       expect(info.currencies[0].code).toBe('SRT');
+    });
+  });
+
+  describe('submitCustomerKyc (SEP-12)', () => {
+    it('submits customer KYC info via PUT /customer and returns ACCEPTED status', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'cust_kyc_999',
+          status: 'ACCEPTED',
+        }),
+      });
+
+      const res = await submitCustomerKyc('https://testanchor.stellar.org/sep12', 'MOCK_JWT', {
+        first_name: 'John',
+        last_name: 'Doe',
+        email_address: 'john@example.com',
+        id_type: 'passport',
+        id_number: 'A12345678',
+      });
+
+      expect(res.id).toBe('cust_kyc_999');
+      expect(res.status).toBe('ACCEPTED');
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://testanchor.stellar.org/sep12/customer',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer MOCK_JWT',
+            'Content-Type': 'application/json',
+          }),
+        })
+      );
     });
   });
 
