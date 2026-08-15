@@ -207,3 +207,68 @@
   outline: none;
   border-color: var(--accent-cyan);
 }
+
+/* Comprehensive Mobile Responsiveness (375px / 390px Viewports) */
+@media (max-width: 600px) {
+  .navbar {
+    height: auto;
+    min-height: 64px;
+    padding: 0.5rem 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .nav-logo {
+    font-size: 1.15rem;
+  }
+  .nav-links {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.82rem;
+  }
+  .grid-container {
+    grid-template-columns: 1fr;
+    padding: 1rem 0.75rem;
+    gap: 1.25rem;
+  }
+  .section-title {
+    padding: 0 0.75rem;
+    font-size: 1.4rem;
+  }
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    padding: 1rem 0.75rem;
+    gap: 1.25rem;
+  }
+  .modal-content {
+    width: 94%;
+    padding: 1.25rem 1rem;
+    max-width: 360px;
+  }
+  .toast-container {
+    bottom: 0.75rem;
+    right: 0.5rem;
+    left: 0.5rem;
+    min-width: auto;
+  }
+  .toast {
+    min-width: auto;
+    width: 100%;
+    font-size: 0.85rem;
+    padding: 0.75rem 1rem;
+  }
+  .live-feed-container {
+    display: none; /* Prevent fixed live-feed from obscuring interactive elements on mobile */
+  }
+  .hero {
+    min-height: auto;
+    padding: 2.5rem 0.75rem 1.5rem 0.75rem;
+  }
+  .hero h1 {
+    font-size: 2rem;
+  }
+  .hero p {
+    font-size: 0.92rem;
+    margin-bottom: 1.5rem;
+  }
+}
+
