@@ -22,6 +22,7 @@ const CreateCampaign = lazy(() => import('./pages/CreateCampaign'));
 const CampaignDetails = lazy(() => import('./pages/CampaignDetails'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
+const FeedbackAdmin = lazy(() => import('./pages/FeedbackAdmin'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function App() {
@@ -45,6 +46,7 @@ function App() {
                         <Route path="/campaign/:id" element={<CampaignDetails />} />
                         <Route path="/dashboard" element={<Dashboard />} />
                         <Route path="/about" element={<About />} />
+                        <Route path="/admin/feedback" element={<FeedbackAdmin />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </Suspense>
