@@ -2,6 +2,7 @@
 node_modules/
 dist/
 .env
+frontend/.env
 .env.local
 *.log
 npm-debug.log*
