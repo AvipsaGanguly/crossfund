@@ -4,7 +4,7 @@ import { useCampaign } from '../hooks/useCampaign';
 import { useWallet } from '../hooks/useWallet';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import ProgressBar from '../components/ProgressBar';
-import { LoadingSkeleton } from '../components/LoadingSpinner';
+import LoadingSpinner, { LoadingSkeleton, Spinner } from '../components/LoadingSpinner';
 import DonationSuccessModal from '../components/DonationSuccessModal';
 import FiatDepositModal from '../components/FiatDepositModal';
 
@@ -246,8 +246,20 @@ const CampaignDetails = () => {
                   className="input-field"
                   onChange={(e) => setDonationAmount(e.target.value)}
                 />
-                <button type="submit" className="btn btn-primary" disabled={isDonating}>
-                  {isDonating ? 'Processing XLM Donation...' : 'Donate XLM Now'}
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isDonating}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                >
+                  {isDonating ? (
+                    <>
+                      <Spinner size="18px" color="#fff" />
+                      <span>Confirming Donation on-chain...</span>
+                    </>
+                  ) : (
+                    'Donate XLM Now'
+                  )}
                 </button>
               </form>
             </div>

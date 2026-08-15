@@ -4,7 +4,7 @@ import CampaignCard from '../components/CampaignCard';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useWallet } from '../hooks/useWallet';
 import { useCampaign } from '../hooks/useCampaign';
-import { LoadingSkeleton } from '../components/LoadingSpinner';
+import { LoadingSkeleton, Spinner } from '../components/LoadingSpinner';
 import FiatWithdrawalModal from '../components/FiatWithdrawalModal';
 
 const Dashboard = () => {
@@ -14,6 +14,7 @@ const Dashboard = () => {
   const [userCampaigns, setUserCampaigns] = useState([]);
   const [selectedWithdrawCampaign, setSelectedWithdrawCampaign] = useState(null);
   const [actionStatus, setActionStatus] = useState('');
+  const [withdrawingId, setWithdrawingId] = useState(null);
 
   useEffect(() => {
     const loadUserCampaigns = async () => {
@@ -33,6 +34,7 @@ const Dashboard = () => {
     : 'Not Connected';
 
   const handleDirectWithdraw = async (campaignId) => {
+    setWithdrawingId(campaignId);
     try {
       setActionStatus(`Processing on-chain contract withdrawal for Campaign #${campaignId}...`);
       await withdraw(campaignId);
@@ -42,6 +44,8 @@ const Dashboard = () => {
     } catch (err) {
       console.error('Direct withdrawal error:', err);
       setActionStatus(`Withdrawal Error: ${err.message}`);
+    } finally {
+      setWithdrawingId(null);
     }
   };
 
@@ -129,7 +133,7 @@ const Dashboard = () => {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                         <button
                           onClick={() => handleDirectWithdraw(id)}
-                          disabled={raised < goal}
+                          disabled={raised < goal || withdrawingId === id}
                           style={{
                             background: 'rgba(255, 255, 255, 0.06)',
                             color: raised >= goal ? '#38bdf8' : '#64748b',
@@ -138,10 +142,21 @@ const Dashboard = () => {
                             padding: '0.5rem 0.25rem',
                             fontSize: '0.78rem',
                             fontWeight: 600,
-                            cursor: raised >= goal ? 'pointer' : 'not-allowed',
+                            cursor: (raised >= goal && withdrawingId !== id) ? 'pointer' : 'not-allowed',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.25rem',
                           }}
                         >
-                          ⚡ On-Chain
+                          {withdrawingId === id ? (
+                            <>
+                              <Spinner size="12px" color="#38bdf8" />
+                              <span>Wait...</span>
+                            </>
+                          ) : (
+                            '⚡ On-Chain'
+                          )}
                         </button>
                         <button
                           onClick={() => setSelectedWithdrawCampaign({ id, title, raised })}

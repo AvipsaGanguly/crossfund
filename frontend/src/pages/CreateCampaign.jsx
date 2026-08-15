@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTransaction } from '../hooks/useTransaction';
+import { useToast } from '../hooks/useToast';
 import { buildCreateCampaignTx } from '../services/campaign';
+import { Spinner } from '../components/LoadingSpinner';
 
 const CreateCampaign = () => {
   const navigate = useNavigate();
   const { execute, isPending } = useTransaction();
+  const toast = useToast();
+  const addToast = toast?.addToast;
+  const [errorMessage, setErrorMessage] = useState('');
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -20,11 +25,14 @@ const CreateCampaign = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
 
     // ── Parse goal ───────────────────────────────────────────────────────────
     const goalXLM = Number(form.goal);
     if (!goalXLM || goalXLM <= 0) {
-      alert('Goal must be a positive number.');
+      const msg = 'Goal must be a positive number of XLM.';
+      setErrorMessage(msg);
+      if (addToast) addToast(msg, 'error');
       return;
     }
     const goalStroops = BigInt(Math.round(goalXLM * 10_000_000));
@@ -35,30 +43,32 @@ const CreateCampaign = () => {
     const nowTimestamp = Math.floor(Date.now() / 1000);
 
     if (deadlineTimestamp <= nowTimestamp) {
-      alert(
-        `Deadline is in the past!\n\n` +
-        `Deadline : ${deadlineDate.toLocaleString()} (unix ${deadlineTimestamp})\n` +
-        `Now      : ${new Date(nowTimestamp * 1000).toLocaleString()} (unix ${nowTimestamp})\n\n` +
-        `Please pick a future date.`
-      );
+      const msg = `Deadline is in the past! Please pick a future date.`;
+      setErrorMessage(msg);
+      if (addToast) addToast(msg, 'error');
       return;
     }
 
-    const success = await execute(
-      (address) => buildCreateCampaignTx(address, {
-        title: form.title,
-        description: form.description || '',
-        goal: goalStroops,
-        deadline: deadlineTimestamp,
-        category: form.category,
-      }),
-      'Campaign created successfully!'
-    );
+    try {
+      const success = await execute(
+        (address) => buildCreateCampaignTx(address, {
+          title: form.title,
+          description: form.description || '',
+          goal: goalStroops,
+          deadline: deadlineTimestamp,
+          category: form.category,
+        }),
+        'Campaign created successfully!'
+      );
 
-    if (success) {
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1500);
+      if (success) {
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      }
+    } catch (err) {
+      const errMsg = err?.message || 'Transaction submission failed.';
+      setErrorMessage(errMsg);
     }
   };
 
@@ -72,6 +82,31 @@ const CreateCampaign = () => {
     <div className="animate-fade-in" style={{ padding: '2rem 5%', maxWidth: '600px', margin: '0 auto' }}>
       <h2 className="section-title">Create Campaign</h2>
       <form className="glass" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }} onSubmit={handleSubmit}>
+        {errorMessage && (
+          <div
+            className="animate-fade-in"
+            style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '12px',
+              padding: '0.85rem 1.15rem',
+              color: '#f87171',
+              fontSize: '0.88rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>⚠️ {errorMessage}</span>
+            <button
+              type="button"
+              onClick={() => setErrorMessage('')}
+              style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '1rem' }}
+            >
+              &times;
+            </button>
+          </div>
+        )}
 
         <input type="text" name="title" placeholder="Campaign Title" required className="input-field" onChange={handleChange} />
         <textarea name="description" placeholder="Description (optional)" rows="4" className="input-field" onChange={handleChange}></textarea>
@@ -81,8 +116,20 @@ const CreateCampaign = () => {
           <input type="date" name="deadline" required min={tomorrowStr} className="input-field" style={{ flex: 1 }} onChange={handleChange} />
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={isPending}>
-          {isPending ? 'Processing...' : 'Submit Campaign'}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={isPending}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+        >
+          {isPending ? (
+            <>
+              <Spinner size="18px" color="#fff" />
+              <span>Confirming Transaction on Stellar...</span>
+            </>
+          ) : (
+            'Submit Campaign'
+          )}
         </button>
       </form>
     </div>
