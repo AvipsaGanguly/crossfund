@@ -157,11 +157,10 @@ export default function FiatDepositModal({
       
       try {
         const kycRes = await submitCustomerKyc(tomlInfo.kycServer, jwtToken, {
+          account: userPublicKey,
           first_name: 'Jane',
           last_name: 'Donor',
           email_address: 'donor@crossfund.org',
-          id_type: 'passport',
-          id_number: 'P12345678',
         });
         
         if (kycRes.status === 'REJECTED') {

@@ -8,7 +8,7 @@
  * - SEP-24: Interactive deposit flow, interactive withdrawal flow & status polling
  */
 
-import { signTransaction } from './wallet';
+import { signTransaction } from './wallet.js';
 
 // Default Stellar Testnet Anchor domain
 export const DEFAULT_TESTNET_ANCHOR = 'testanchor.stellar.org';
@@ -106,8 +106,33 @@ export async function getAnchorTomlInfo(domain = DEFAULT_TESTNET_ANCHOR) {
 }
 
 /**
- * Step 1.5: SEP-12 Customer KYC Submission
- * Submits customer KYC information (first_name, last_name, email_address, etc.) to anchor's KYC server.
+ * Step 1.5a: SEP-12 GET /customer Status Check
+ * Retrieves current KYC customer status (NEEDS_INFO, ACCEPTED, PENDING, REJECTED) and required fields.
+ *
+ * @param {string} kycServerEndpoint - Anchor KYC_SERVER endpoint
+ * @param {string} jwtToken - Authenticated JWT Token
+ * @param {string} userPublicKey - User's Stellar Public Key
+ * @returns {Promise<{ id?: string, status: string, fields?: Object, provided_fields?: Object }>}
+ */
+export async function getCustomerKycStatus(kycServerEndpoint, jwtToken, userPublicKey) {
+  const url = `${kycServerEndpoint}/customer?account=${encodeURIComponent(userPublicKey)}`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${jwtToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`SEP-12 GET /customer status check failed (${response.status}): ${errText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Step 1.5b: SEP-12 Customer KYC Submission (PUT /customer)
+ * Submits customer KYC information (first_name, last_name, email_address, etc.) to anchor's KYC server using FormData.
  *
  * @param {string} kycServerEndpoint - Anchor KYC_SERVER endpoint
  * @param {string} jwtToken - Authenticated JWT Token from SEP-10
@@ -115,31 +140,49 @@ export async function getAnchorTomlInfo(domain = DEFAULT_TESTNET_ANCHOR) {
  * @param {string} kycFields.first_name
  * @param {string} kycFields.last_name
  * @param {string} kycFields.email_address
- * @param {string} [kycFields.id_type]
- * @param {string} [kycFields.id_number]
+ * @param {string} [kycFields.account]
  * @returns {Promise<{ id: string, status: 'ACCEPTED' | 'PENDING' | 'NEEDS_INFO' | 'REJECTED' }>}
  */
 export async function submitCustomerKyc(kycServerEndpoint, jwtToken, kycFields) {
   const url = `${kycServerEndpoint}/customer`;
 
+  const formData = new FormData();
+  Object.keys(kycFields).forEach((key) => {
+    if (kycFields[key] !== undefined && kycFields[key] !== null) {
+      formData.append(key, kycFields[key]);
+    }
+  });
+
   const response = await fetch(url, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${jwtToken}`,
-      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(kycFields),
+    body: formData,
   });
 
-  if (!response.ok) {
+  if (!response.ok && response.status !== 202) {
     const errText = await response.text();
     throw new Error(`SEP-12 KYC submission failed (${response.status}): ${errText}`);
   }
 
   const data = await response.json();
+  const customerId = data.id;
+
+  // Query updated customer status via GET /customer
+  let currentStatus = 'ACCEPTED';
+  if (kycFields.account) {
+    try {
+      const checkRes = await getCustomerKycStatus(kycServerEndpoint, jwtToken, kycFields.account);
+      currentStatus = checkRes.status || 'ACCEPTED';
+    } catch (e) {
+      console.warn('[SEP-12 Status Check Warning]:', e.message);
+    }
+  }
+
   return {
-    id: data.id,
-    status: data.status || 'ACCEPTED',
+    id: customerId,
+    status: currentStatus,
   };
 }
 
@@ -213,19 +256,16 @@ export async function authenticateWithAnchor(webAuthEndpoint, userPublicKey) {
 export async function initiateInteractiveDeposit(transferServerEndpoint, jwtToken, { assetCode = 'SRT', userPublicKey }) {
   const depositUrl = `${transferServerEndpoint}/transactions/deposit/interactive`;
 
-  const payload = {
-    asset_code: assetCode,
-    account: userPublicKey,
-    claimable_balance_supported: true,
-  };
+  const formData = new FormData();
+  formData.append('asset_code', assetCode);
+  formData.append('account', userPublicKey);
 
   const response = await fetch(depositUrl, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${jwtToken}`,
-      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: formData,
   });
 
   if (!response.ok) {
@@ -279,18 +319,16 @@ export function openInteractiveWindow(url, title = 'Stellar Anchor Interactive C
 export async function initiateInteractiveWithdrawal(transferServerEndpoint, jwtToken, { assetCode = 'SRT', userPublicKey }) {
   const withdrawUrl = `${transferServerEndpoint}/transactions/withdraw/interactive`;
 
-  const payload = {
-    asset_code: assetCode,
-    account: userPublicKey,
-  };
+  const formData = new FormData();
+  formData.append('asset_code', assetCode);
+  formData.append('account', userPublicKey);
 
   const response = await fetch(withdrawUrl, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${jwtToken}`,
-      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: formData,
   });
 
   if (!response.ok) {

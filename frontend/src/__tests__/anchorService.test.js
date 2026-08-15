@@ -88,7 +88,6 @@ issuer = "GCDNJBDQUBWCDFRB2OPFDYDLY2CYCD2RP34WECWTESPB2CYD2RP34WEC"
           method: 'PUT',
           headers: expect.objectContaining({
             Authorization: 'Bearer MOCK_JWT',
-            'Content-Type': 'application/json',
           }),
         })
       );
