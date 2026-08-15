@@ -15,27 +15,52 @@ const mockModule = {
 
 // Mock @creit.tech/stellar-wallets-kit
 vi.mock('@creit.tech/stellar-wallets-kit', () => {
-  const MockStellarWalletsKit = {
-    init: vi.fn(),
-    setWallet: vi.fn((walletId) => {
+  class MockStellarWalletsKit {
+    constructor(opts) {
+      if (opts?.selectedWalletId) mockModule.productId = opts.selectedWalletId;
+    }
+    static init = vi.fn();
+    static setWallet = vi.fn((walletId) => {
       mockModule.productId = walletId;
-    }),
-    get selectedModule() {
+    });
+    static get selectedModule() {
       return mockModule;
-    },
-    authModal: vi.fn(async () => {
+    }
+    static authModal = vi.fn(async () => {
       if (mockShouldReject) {
         throw new Error('User denied wallet authentication request');
       }
       return { address: mockAddress };
-    }),
-    signTransaction: vi.fn(async (xdr) => {
+    });
+    static openModal = vi.fn(async () => {
+      if (mockShouldReject) {
+        throw new Error('User denied wallet authentication request');
+      }
+      return { address: mockAddress };
+    });
+    static signTransaction = vi.fn(async (xdr) => {
       if (xdr === 'INVALID_REJECT') {
         throw new Error('User cancelled transaction signing');
       }
       return { signedTxXdr: 'SIGNED_' + xdr, signerAddress: mockAddress };
-    }),
-  };
+    });
+
+    setWallet(walletId) {
+      MockStellarWalletsKit.setWallet(walletId);
+    }
+    get selectedModule() {
+      return MockStellarWalletsKit.selectedModule;
+    }
+    async authModal() {
+      return MockStellarWalletsKit.authModal();
+    }
+    async openModal() {
+      return MockStellarWalletsKit.openModal();
+    }
+    async signTransaction(xdr, opts) {
+      return MockStellarWalletsKit.signTransaction(xdr, opts);
+    }
+  }
 
   return {
     StellarWalletsKit: MockStellarWalletsKit,

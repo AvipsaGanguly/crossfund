@@ -35,22 +35,49 @@ let activeWalletId = null;
 let activeAddress = null;
 let kitInitialized = false;
 
-// ─── Kit singleton initialization ───────────────────────────────────────────
-export function initKit() {
-  if (!kitInitialized) {
-    StellarWalletsKit.init({
-      network: Networks.TESTNET,
-      selectedWalletId: SUPPORTED_WALLETS.FREIGHTER,
-      modules: [
-        new FreighterModule(),
-        new xBullModule(),
-        new AlbedoModule(),
-        new LobstrModule(),
-        new RabetModule(),
-      ],
-    });
-    kitInitialized = true;
+// ─── Kit singleton initialization (Constructor Pattern v2.5) ─────────────────
+let kitInstance = null;
+
+export function getKit() {
+  if (!kitInstance) {
+    if (typeof StellarWalletsKit.init === 'function') {
+      StellarWalletsKit.init({
+        network: Networks.TESTNET,
+        selectedWalletId: SUPPORTED_WALLETS.FREIGHTER,
+        modules: [
+          new FreighterModule(),
+          new xBullModule(),
+          new AlbedoModule(),
+          new LobstrModule(),
+          new RabetModule(),
+        ],
+      });
+    }
+    if (typeof StellarWalletsKit === 'function') {
+      try {
+        kitInstance = new StellarWalletsKit({
+          network: Networks.TESTNET,
+          selectedWalletId: SUPPORTED_WALLETS.FREIGHTER,
+          modules: [
+            new FreighterModule(),
+            new xBullModule(),
+            new AlbedoModule(),
+            new LobstrModule(),
+            new RabetModule(),
+          ],
+        });
+      } catch (err) {
+        kitInstance = StellarWalletsKit;
+      }
+    } else {
+      kitInstance = StellarWalletsKit;
+    }
   }
+  return kitInstance;
+}
+
+export function initKit() {
+  return getKit();
 }
 
 function isSupportedWallet(walletId) {
@@ -61,7 +88,7 @@ function isSupportedWallet(walletId) {
 /**
  * Connects to a Stellar wallet.
  *
- * If walletId is NOT provided, invokes StellarWalletsKit.authModal() to show
+ * If walletId is NOT provided, invokes kit.openModal() / authModal() to show
  * the kit's official selection modal.
  * If walletId IS provided, sets the wallet module and calls getAddress({ skipRequestAccess: false })
  * to trigger the wallet extension authorization popup.
@@ -70,19 +97,29 @@ function isSupportedWallet(walletId) {
  * @returns {Promise<{walletId: string, address: string, isConnected: boolean}>} Connected session payload
  */
 export async function connectWallet(walletId = null) {
-  initKit();
+  const kit = getKit();
 
-  // If no explicit walletId was passed, open official StellarWalletsKit.authModal()
+  // If no explicit walletId was passed, open official StellarWalletsKit modal
   if (!walletId) {
     try {
-      const modalRes = await StellarWalletsKit.authModal();
-      const selectedId = StellarWalletsKit.selectedModule?.productId || SUPPORTED_WALLETS.FREIGHTER;
+      const modalRes = typeof kit.openModal === 'function'
+        ? await kit.openModal()
+        : typeof kit.authModal === 'function'
+        ? await kit.authModal()
+        : await StellarWalletsKit.authModal();
+
+      const selectedId = (
+        kit.selectedWalletId ||
+        kit.selectedModule?.productId ||
+        StellarWalletsKit.selectedModule?.productId ||
+        SUPPORTED_WALLETS.FREIGHTER
+      );
 
       if (!modalRes?.address || typeof modalRes.address !== 'string') {
         throw new Error('No public key address received from wallet authentication.');
       }
 
-      activeWalletId = selectedId.toLowerCase();
+      activeWalletId = String(selectedId).toLowerCase();
       activeAddress = modalRes.address;
 
       return { walletId: activeWalletId, address: activeAddress, isConnected: true };
@@ -104,13 +141,19 @@ export async function connectWallet(walletId = null) {
     );
   }
 
-  // Select module in the kit
-  StellarWalletsKit.setWallet(normalizedId);
+  // Select module in the kit instance
+  if (typeof kit.setWallet === 'function') {
+    kit.setWallet(normalizedId);
+  }
+  if (typeof StellarWalletsKit.setWallet === 'function') {
+    StellarWalletsKit.setWallet(normalizedId);
+  }
 
   try {
-    // Calling getAddress({ skipRequestAccess: false }) forces requestAccess() to run first,
-    // prompting the extension authorization popup.
-    const { address } = await StellarWalletsKit.selectedModule.getAddress({ skipRequestAccess: false });
+    const selectedMod = kit.selectedModule || StellarWalletsKit.selectedModule;
+    const { address } = selectedMod && typeof selectedMod.getAddress === 'function'
+      ? await selectedMod.getAddress({ skipRequestAccess: false })
+      : await StellarWalletsKit.getAddress();
 
     if (!address || typeof address !== 'string') {
       throw new Error(`No valid public key address returned from ${normalizedId}.`);
@@ -197,10 +240,12 @@ export async function signTransaction(xdr, opts = {}) {
     throw new Error('Invalid XDR string provided for signing.');
   }
 
-  initKit();
+  const kit = getKit();
 
   try {
-    const result = await StellarWalletsKit.signTransaction(xdr, opts);
+    const result = typeof kit.signTransaction === 'function'
+      ? await kit.signTransaction(xdr, opts)
+      : await StellarWalletsKit.signTransaction(xdr, opts);
     return result;
   } catch (error) {
     const msg = error?.message || String(error);
