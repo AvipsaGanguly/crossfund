@@ -20,6 +20,7 @@ import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
 import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
 import { LobstrModule } from '@creit.tech/stellar-wallets-kit/modules/lobstr';
 import { RabetModule } from '@creit.tech/stellar-wallets-kit/modules/rabet';
+import { isConnected as isFreighterConnected, requestAccess as requestFreighterAccess } from '@stellar/freighter-api';
 
 // ─── Supported wallet identifiers ────────────────────────────────────────────
 export const SUPPORTED_WALLETS = {
@@ -165,6 +166,10 @@ export async function connectWallet(walletId = null) {
     return { walletId: activeWalletId, address: activeAddress, isConnected: true };
 
   } catch (error) {
+    if (error.isNotInstalled || error.isUserRejection) {
+      throw error;
+    }
+
     const msg = error?.message || String(error);
     const lower = msg.toLowerCase();
 
@@ -174,9 +179,10 @@ export async function connectWallet(walletId = null) {
       lower.includes('not available') ||
       lower.includes('missing')
     ) {
-      throw new Error(
-        `The ${normalizedId} wallet extension is not installed or unavailable in your browser.`
-      );
+      const err = new Error(`The ${normalizedId} wallet extension is not installed or unavailable in your browser.`);
+      err.isNotInstalled = true;
+      err.installUrl = 'https://www.freighter.app/';
+      throw err;
     }
 
     if (
@@ -185,7 +191,9 @@ export async function connectWallet(walletId = null) {
       lower.includes('cancel') ||
       lower.includes('declined')
     ) {
-      throw new Error('Connection request was rejected by the user in wallet popup.');
+      const err = new Error('Connection request was rejected by the user in wallet popup.');
+      err.isUserRejection = true;
+      throw err;
     }
 
     throw new Error(`Failed to connect ${normalizedId}: ${msg}`);

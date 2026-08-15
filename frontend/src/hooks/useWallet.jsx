@@ -24,6 +24,7 @@ export const WalletProvider = ({ children }) => {
   const [activeWallet, setActiveWallet] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [installUrl, setInstallUrl] = useState('');
   const { addToast } = useToast();
 
   /**
@@ -34,20 +35,31 @@ export const WalletProvider = ({ children }) => {
    */
   const connect = async (walletId = null) => {
     setIsConnecting(true);
+    setInstallUrl('');
     try {
       const res = await connectWalletService(walletId);
       setAddress(res.address);
       setActiveWallet(res.walletId);
       setIsModalOpen(false);
+      setInstallUrl('');
       if (addToast) addToast(`Connected to ${res.walletId}!`, 'success');
       return res;
     } catch (err) {
       console.error('Wallet connection error:', err);
-      if (addToast) addToast(err.message || 'Failed to connect wallet.', 'error');
-      // Clean up local state on failure
       disconnectWalletService();
       setAddress('');
       setActiveWallet('');
+
+      const errMsg = err?.message || 'Failed to connect wallet.';
+      if (err?.isNotInstalled || errMsg.toLowerCase().includes('not installed')) {
+        const url = err.installUrl || 'https://www.freighter.app/';
+        setInstallUrl(url);
+        if (addToast) addToast(`Freighter extension is not installed. Please install from ${url}`, 'error');
+      } else if (err?.isUserRejection || errMsg.toLowerCase().includes('reject') || errMsg.toLowerCase().includes('denied')) {
+        if (addToast) addToast('Connection request was rejected by the user in wallet popup.', 'error');
+      } else {
+        if (addToast) addToast(errMsg, 'error');
+      }
       throw err;
     } finally {
       setIsConnecting(false);
@@ -62,6 +74,7 @@ export const WalletProvider = ({ children }) => {
     setAddress('');
     setActiveWallet('');
     setIsModalOpen(false);
+    setInstallUrl('');
     if (addToast) addToast('Wallet disconnected.', 'info');
   }, [addToast]);
 
@@ -106,6 +119,7 @@ export const WalletProvider = ({ children }) => {
         activeWallet,
         isConnecting,
         isConnected: Boolean(address),
+        installUrl,
         connect,
         disconnect,
         switchWallet,

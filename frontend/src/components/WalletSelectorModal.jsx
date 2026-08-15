@@ -1,8 +1,9 @@
 import React from 'react';
 import { useWallet } from '../hooks/useWallet';
+import { Spinner } from './LoadingSpinner';
 
 const WalletSelectorModal = () => {
-  const { isModalOpen, setIsModalOpen, connect, isConnecting, supportedWallets } = useWallet();
+  const { isModalOpen, setIsModalOpen, connect, isConnecting, supportedWallets, installUrl } = useWallet();
 
   if (!isModalOpen) return null;
 
@@ -14,14 +15,46 @@ const WalletSelectorModal = () => {
           Select a wallet extension to authorize connection
         </p>
 
-        {/* Stellar Wallets Kit Default Auth Modal Option */}
+        {installUrl && (
+          <div style={{ padding: '0.75rem', background: 'rgba(255, 193, 7, 0.1)', border: '1px solid #ffc107', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center' }}>
+            <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.85rem', color: '#ffc107' }}>
+              Freighter extension is not installed.
+            </p>
+            <a
+              href={installUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#4dabf7', fontWeight: '600', fontSize: '0.85rem' }}
+            >
+              Click here to install Freighter ↗
+            </a>
+          </div>
+        )}
+
+        {/* Direct Freighter Connect Button */}
         <button
           className="btn btn-primary"
-          onClick={() => connect(null)}
+          onClick={() => connect('freighter')}
           disabled={isConnecting}
-          style={{ width: '100%', marginBottom: '1.25rem', padding: '0.85rem', fontWeight: 600 }}
+          style={{
+            width: '100%',
+            marginBottom: '1.25rem',
+            padding: '0.85rem',
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+          }}
         >
-          Open Stellar Wallets Kit Modal ↗
+          {isConnecting ? (
+            <>
+              <Spinner size="18px" color="#fff" />
+              <span>Connecting to Wallet...</span>
+            </>
+          ) : (
+            'Connect Freighter Wallet ↗'
+          )}
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0', gap: '0.5rem' }}>
