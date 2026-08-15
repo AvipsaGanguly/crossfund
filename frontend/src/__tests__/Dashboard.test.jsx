@@ -4,6 +4,12 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
+vi.mock('../services/wallet', () => ({
+  connectWallet: vi.fn(),
+  disconnectWallet: vi.fn(),
+  getActiveWallet: vi.fn(() => ({ address: 'G123', isConnected: true })),
+}));
+
 vi.mock('../hooks/useWallet', () => ({
   useWallet: () => ({
     address: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
