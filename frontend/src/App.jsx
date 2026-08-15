@@ -7,6 +7,7 @@ import { WalletProvider } from './hooks/useWallet';
 import { EventProvider } from './hooks/useEvents';
 import LiveFeed from './components/LiveFeed';
 import WalletSelectorModal from './components/WalletSelectorModal';
+import FeedbackWidget from './components/FeedbackWidget';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -35,6 +36,7 @@ function App() {
                   <Navbar />
                   <WalletSelectorModal />
                   <LiveFeed />
+                  <FeedbackWidget />
                   <main>
                     <Suspense fallback={<div className="loading-container">Loading...</div>}>
                       <Routes>
