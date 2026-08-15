@@ -130,10 +130,11 @@ export default function FeedbackWidget() {
             ) : (
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
-                  <label style={{ fontSize: '0.82rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem' }}>
+                  <label htmlFor="feedback-category" style={{ fontSize: '0.82rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem' }}>
                     Feedback Category
                   </label>
                   <select
+                    id="feedback-category"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     style={{
@@ -179,10 +180,11 @@ export default function FeedbackWidget() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: '0.82rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem' }}>
+                  <label htmlFor="feedback-comments" style={{ fontSize: '0.82rem', color: '#94a3b8', display: 'block', marginBottom: '0.35rem' }}>
                     Your Comments
                   </label>
                   <textarea
+                    id="feedback-comments"
                     rows="3"
                     required
                     placeholder="Tell us what you loved or what we can fix..."
